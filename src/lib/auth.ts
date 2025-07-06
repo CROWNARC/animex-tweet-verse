@@ -85,27 +85,38 @@ export const authService = {
   },
 
   onAuthStateChange(callback: (session: Session | null, user: AuthUser | null) => void) {
-    return supabase.auth.onAuthStateChange(async (event, session) => {
+    return supabase.auth.onAuthStateChange((event, session) => {
       let authUser: AuthUser | null = null;
       
       if (session?.user) {
-        // Set user context
-        await supabase.rpc('set_config', { 
-          setting_name: 'app.current_user_id', 
-          setting_value: session.user.id 
-        });
-
-        // Get profile data
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .single();
-
         authUser = {
           ...session.user,
-          profile: profile || undefined
+          profile: undefined
         } as AuthUser;
+        
+        // Defer async operations to prevent deadlock
+        setTimeout(async () => {
+          // Set user context
+          await supabase.rpc('set_config', { 
+            setting_name: 'app.current_user_id', 
+            setting_value: session.user.id 
+          });
+
+          // Get profile data
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .single();
+
+          // Update the user with profile data
+          const updatedUser = {
+            ...session.user,
+            profile: profile || undefined
+          } as AuthUser;
+          
+          callback(session, updatedUser);
+        }, 0);
       }
 
       callback(session, authUser);

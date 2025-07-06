@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Bell, Search, Settings, LogOut, Users } from 'lucide-react';
+import { Bell, Search, Settings, Users } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Link, useNavigate } from 'react-router-dom';
+import { ProfileDropdown } from '@/components/ProfileDropdown';
 
 interface Post {
   id: string;
@@ -193,16 +194,7 @@ const Index = () => {
               </Button>
             )}
 
-            <Avatar className="h-8 w-8 cursor-pointer">
-              <AvatarImage src={user.profile?.avatar_url} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                {user.profile?.username?.[0]?.toUpperCase() || 'U'}
-              </AvatarFallback>
-            </Avatar>
-
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              <LogOut className="h-5 w-5" />
-            </Button>
+            <ProfileDropdown onSignOut={handleSignOut} />
           </div>
         </div>
       </header>
