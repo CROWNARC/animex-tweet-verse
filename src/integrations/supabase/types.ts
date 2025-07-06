@@ -36,6 +36,74 @@ export type Database = {
         }
         Relationships: []
       }
+      anime_subscriptions: {
+        Row: {
+          anime_id: string
+          anime_title: string
+          created_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          anime_id: string
+          anime_title: string
+          created_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          anime_id?: string
+          anime_title?: string
+          created_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      comments: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          like_count: number | null
+          post_id: string | null
+          updated_at: string | null
+          user_avatar: string | null
+          user_id: string
+          username: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          like_count?: number | null
+          post_id?: string | null
+          updated_at?: string | null
+          user_avatar?: string | null
+          user_id: string
+          username: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          like_count?: number | null
+          post_id?: string | null
+          updated_at?: string | null
+          user_avatar?: string | null
+          user_id?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_comments: {
         Row: {
           content: string
@@ -225,6 +293,189 @@ export type Database = {
           },
         ]
       }
+      likes: {
+        Row: {
+          comment_id: string | null
+          created_at: string | null
+          id: string
+          post_id: string | null
+          user_id: string
+        }
+        Insert: {
+          comment_id?: string | null
+          created_at?: string | null
+          id?: string
+          post_id?: string | null
+          user_id: string
+        }
+        Update: {
+          comment_id?: string | null
+          created_at?: string | null
+          id?: string
+          post_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "likes_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          post_id: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          post_id?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          post_id?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posts: {
+        Row: {
+          anime_id: string | null
+          anime_image: string | null
+          anime_title: string | null
+          comment_count: number | null
+          content: string
+          created_at: string | null
+          id: string
+          like_count: number | null
+          link_title: string | null
+          link_url: string | null
+          media_url: string | null
+          original_post_id: string | null
+          post_type: Database["public"]["Enums"]["post_type"] | null
+          retweet_count: number | null
+          status: Database["public"]["Enums"]["post_status"] | null
+          updated_at: string | null
+          user_avatar: string | null
+          user_id: string
+          username: string
+        }
+        Insert: {
+          anime_id?: string | null
+          anime_image?: string | null
+          anime_title?: string | null
+          comment_count?: number | null
+          content: string
+          created_at?: string | null
+          id?: string
+          like_count?: number | null
+          link_title?: string | null
+          link_url?: string | null
+          media_url?: string | null
+          original_post_id?: string | null
+          post_type?: Database["public"]["Enums"]["post_type"] | null
+          retweet_count?: number | null
+          status?: Database["public"]["Enums"]["post_status"] | null
+          updated_at?: string | null
+          user_avatar?: string | null
+          user_id: string
+          username: string
+        }
+        Update: {
+          anime_id?: string | null
+          anime_image?: string | null
+          anime_title?: string | null
+          comment_count?: number | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          like_count?: number | null
+          link_title?: string | null
+          link_url?: string | null
+          media_url?: string | null
+          original_post_id?: string | null
+          post_type?: Database["public"]["Enums"]["post_type"] | null
+          retweet_count?: number | null
+          status?: Database["public"]["Enums"]["post_status"] | null
+          updated_at?: string | null
+          user_avatar?: string | null
+          user_id?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posts_original_post_id_fkey"
+            columns: ["original_post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      retweets: {
+        Row: {
+          created_at: string | null
+          id: string
+          post_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          post_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          post_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retweets_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_favorites: {
         Row: {
           added_at: string | null
@@ -278,7 +529,11 @@ export type Database = {
       }
       user_profiles: {
         Row: {
+          avatar_url: string | null
+          bio: string | null
           created_at: string | null
+          follower_count: number | null
+          following_count: number | null
           id: string
           is_admin: boolean | null
           join_date: string | null
@@ -288,7 +543,11 @@ export type Database = {
           username: string
         }
         Insert: {
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string | null
+          follower_count?: number | null
+          following_count?: number | null
           id?: string
           is_admin?: boolean | null
           join_date?: string | null
@@ -298,7 +557,11 @@ export type Database = {
           username: string
         }
         Update: {
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string | null
+          follower_count?: number | null
+          following_count?: number | null
           id?: string
           is_admin?: boolean | null
           join_date?: string | null
@@ -357,7 +620,8 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      post_status: "pending" | "approved" | "rejected"
+      post_type: "text" | "image" | "gif" | "link" | "retweet"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -472,6 +736,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      post_status: ["pending", "approved", "rejected"],
+      post_type: ["text", "image", "gif", "link", "retweet"],
+    },
   },
 } as const
