@@ -63,6 +63,6 @@ export const useAuth = () => {
     signUp,
     signIn,
     signOut,
-    isAdmin: user?.profile?.is_admin || false
+    isAdmin: user?.profile?.is_admin === true
   };
 };

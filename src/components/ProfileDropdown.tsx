@@ -5,7 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { User, Settings, LogOut, Upload } from 'lucide-react';
+import { User, Settings, LogOut, Upload, Shield, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -25,6 +26,7 @@ export const ProfileDropdown = ({ onSignOut }: ProfileDropdownProps) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [adminCode, setAdminCode] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,6 +116,60 @@ export const ProfileDropdown = ({ onSignOut }: ProfileDropdownProps) => {
     }
   };
 
+  const handleRedeemAdminCode = async () => {
+    if (!adminCode.trim()) {
+      toast({ title: "Error", description: "Please enter an admin code", variant: "destructive" });
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      // Check if the admin code exists and is not used
+      const { data: adminKey, error: checkError } = await supabase
+        .from('admin_keys')
+        .select('*')
+        .eq('key_code', adminCode.trim())
+        .eq('is_used', false)
+        .single();
+
+      if (checkError || !adminKey) {
+        toast({ title: "Error", description: "Please enter a valid admin code", variant: "destructive" });
+        return;
+      }
+
+      // Mark the admin key as used
+      const { error: updateKeyError } = await supabase
+        .from('admin_keys')
+        .update({
+          is_used: true,
+          used_at: new Date().toISOString(),
+          used_by: user?.id
+        })
+        .eq('id', adminKey.id);
+
+      if (updateKeyError) throw updateKeyError;
+
+      // Update user profile to admin
+      const { error: updateProfileError } = await supabase
+        .from('user_profiles')
+        .update({ is_admin: true })
+        .eq('user_id', user?.id);
+
+      if (updateProfileError) throw updateProfileError;
+
+      toast({ title: "Success", description: "Admin access granted successfully!" });
+      setAdminCode('');
+      
+      // Refresh the page to update auth state
+      window.location.reload();
+    } catch (error) {
+      console.error('Error redeeming admin code:', error);
+      toast({ title: "Error", description: "Failed to redeem admin code", variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
       toast({ title: "Error", description: "Passwords don't match", variant: "destructive" });
@@ -168,6 +224,14 @@ export const ProfileDropdown = ({ onSignOut }: ProfileDropdownProps) => {
             <Settings className="mr-2 h-4 w-4" />
             Change Password
           </DropdownMenuItem>
+          {user.profile?.is_admin && (
+            <DropdownMenuItem asChild>
+              <Link to="/admin" className="cursor-pointer">
+                <Users className="mr-2 h-4 w-4" />
+                Admin Panel
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onSignOut} className="cursor-pointer text-destructive">
             <LogOut className="mr-2 h-4 w-4" />
@@ -228,6 +292,42 @@ export const ProfileDropdown = ({ onSignOut }: ProfileDropdownProps) => {
                 placeholder="Tell us about yourself"
               />
             </div>
+
+            {/* Admin Code Section */}
+            {user.profile?.is_admin ? (
+              <div className="p-3 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-5 w-5 text-yellow-400" />
+                  <span className="text-yellow-300 font-medium">You are an admin</span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  You have administrative privileges and can access the admin panel.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="admin-code">Admin Code (Optional)</Label>
+                <div className="flex space-x-2">
+                  <Input
+                    id="admin-code"
+                    value={adminCode}
+                    onChange={(e) => setAdminCode(e.target.value)}
+                    placeholder="Enter admin code for admin access"
+                  />
+                  <Button 
+                    variant="outline" 
+                    onClick={handleRedeemAdminCode}
+                    disabled={isUpdating || !adminCode.trim()}
+                  >
+                    <Shield className="mr-1 h-4 w-4" />
+                    Redeem
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Enter a valid admin code to gain administrative privileges.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end space-x-2">
               <Button variant="outline" onClick={() => setShowProfileDialog(false)}>
