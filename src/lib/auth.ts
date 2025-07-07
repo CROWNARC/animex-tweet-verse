@@ -27,20 +27,22 @@ export const authService = {
 
     // Create user profile
     if (data.user) {
-      const { error: profileError } = await supabase
-        .rpc('set_config', { 
-          setting_name: 'app.current_user_id', 
-          setting_value: data.user.id 
-        });
+      // Set user context first
+      await supabase.rpc('set_config', { 
+        setting_name: 'app.current_user_id', 
+        setting_value: data.user.id 
+      });
 
-      if (!profileError) {
-        await supabase.from('user_profiles').insert({
-          user_id: data.user.id,
-          username,
-          avatar_url: '',
-          bio: '',
-          is_admin: false
-        });
+      const { error: profileError } = await supabase.from('user_profiles').insert({
+        user_id: data.user.id,
+        username,
+        avatar_url: '',
+        bio: '',
+        is_admin: false
+      });
+
+      if (profileError) {
+        console.error('Error creating profile:', profileError);
       }
     }
 
@@ -85,38 +87,27 @@ export const authService = {
   },
 
   onAuthStateChange(callback: (session: Session | null, user: AuthUser | null) => void) {
-    return supabase.auth.onAuthStateChange((event, session) => {
+    return supabase.auth.onAuthStateChange(async (event, session) => {
       let authUser: AuthUser | null = null;
       
       if (session?.user) {
+        // Set user context
+        await supabase.rpc('set_config', { 
+          setting_name: 'app.current_user_id', 
+          setting_value: session.user.id 
+        });
+
+        // Get profile data
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .single();
+
         authUser = {
           ...session.user,
-          profile: undefined
+          profile: profile || undefined
         } as AuthUser;
-        
-        // Defer async operations to prevent deadlock
-        setTimeout(async () => {
-          // Set user context
-          await supabase.rpc('set_config', { 
-            setting_name: 'app.current_user_id', 
-            setting_value: session.user.id 
-          });
-
-          // Get profile data
-          const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .single();
-
-          // Update the user with profile data
-          const updatedUser = {
-            ...session.user,
-            profile: profile || undefined
-          } as AuthUser;
-          
-          callback(session, updatedUser);
-        }, 0);
       }
 
       callback(session, authUser);

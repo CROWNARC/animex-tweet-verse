@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, X, RotateCcw, ArrowLeft } from 'lucide-react';
+import { Check, X, RotateCcw, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { Link, useNavigate } from 'react-router-dom';
@@ -32,6 +32,7 @@ const Admin = () => {
   const { user, isAdmin, loading } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [activeTab, setActiveTab] = useState('pending');
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -48,7 +49,16 @@ const Admin = () => {
   }, [user, isAdmin]);
 
   const fetchPosts = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
     try {
+      // Set user context for RLS
+      await supabase.rpc('set_config', { 
+        setting_name: 'app.current_user_id', 
+        setting_value: user.id 
+      });
+
       const { data, error } = await supabase
         .from('posts')
         .select('*')
@@ -59,6 +69,8 @@ const Admin = () => {
     } catch (error) {
       console.error('Error fetching posts:', error);
       toast({ title: "Error", description: "Failed to load posts", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -81,6 +93,12 @@ const Admin = () => {
 
   const updatePostStatus = async (postId: string, status: 'approved' | 'rejected') => {
     try {
+      // Set user context for RLS
+      await supabase.rpc('set_config', { 
+        setting_name: 'app.current_user_id', 
+        setting_value: user?.id || '' 
+      });
+
       const { error } = await supabase
         .from('posts')
         .update({ status })
@@ -102,6 +120,12 @@ const Admin = () => {
 
   const deletePost = async (postId: string) => {
     try {
+      // Set user context for RLS
+      await supabase.rpc('set_config', { 
+        setting_name: 'app.current_user_id', 
+        setting_value: user?.id || '' 
+      });
+
       const { error } = await supabase
         .from('posts')
         .delete()
@@ -248,10 +272,13 @@ const Admin = () => {
     </Card>
   );
 
-  if (loading) {
+  if (loading || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading admin panel...</p>
+        </div>
       </div>
     );
   }
