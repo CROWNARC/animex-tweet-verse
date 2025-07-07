@@ -8,22 +8,51 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener first
-    const { data: { subscription } } = authService.onAuthStateChange(
-      (session, user) => {
-        setSession(session);
-        setUser(user);
-        setLoading(false);
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        // Get initial session
+        const { data: { session: initialSession } } = await authService.getSession();
+        
+        if (mounted) {
+          setSession(initialSession);
+          
+          if (initialSession?.user) {
+            const authUser = await authService.getCurrentUser();
+            setUser(authUser);
+          }
+          
+          setLoading(false);
+        }
+
+        // Set up auth state listener
+        const { data: { subscription } } = authService.onAuthStateChange(
+          async (session, user) => {
+            if (mounted) {
+              setSession(session);
+              setUser(user);
+              setLoading(false);
+            }
+          }
+        );
+
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        if (mounted) {
+          setLoading(false);
+        }
       }
-    );
+    };
 
-    // Then check for existing session
-    authService.getCurrentUser().then((user) => {
-      setUser(user);
-      setLoading(false);
-    });
+    initializeAuth();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const signUp = async (email: string, password: string, username: string) => {
@@ -31,6 +60,9 @@ export const useAuth = () => {
     try {
       const result = await authService.signUp(email, password, username);
       return result;
+    } catch (error) {
+      console.error('Sign up error:', error);
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -41,6 +73,9 @@ export const useAuth = () => {
     try {
       const result = await authService.signIn(email, password);
       return result;
+    } catch (error) {
+      console.error('Sign in error:', error);
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -50,7 +85,12 @@ export const useAuth = () => {
     setLoading(true);
     try {
       const result = await authService.signOut();
+      setUser(null);
+      setSession(null);
       return result;
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
     } finally {
       setLoading(false);
     }

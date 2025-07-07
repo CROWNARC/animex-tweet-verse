@@ -5,10 +5,9 @@ import { PostCard } from '@/components/PostCard';
 import { CreatePost } from '@/components/CreatePost';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bell, Search, Settings, Users, TrendingUp, Clock, Heart } from 'lucide-react';
+import { Bell, Search, Settings, Users, TrendingUp, Clock, Heart, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Link, useNavigate } from 'react-router-dom';
 import { ProfileDropdown } from '@/components/ProfileDropdown';
@@ -43,6 +42,7 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState('recent');
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,6 +73,9 @@ const Index = () => {
   }, [searchQuery, posts]);
 
   const fetchPosts = async () => {
+    if (!user) return;
+    
+    setIsLoadingPosts(true);
     try {
       let query = supabase
         .from('posts')
@@ -95,31 +98,39 @@ const Index = () => {
 
       const { data: postsData, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching posts:', error);
+        return;
+      }
 
-      if (user && postsData) {
+      if (postsData) {
         // Check which posts are liked/retweeted by current user
         const postIds = postsData.map(p => p.id);
         
-        const [likesData, retweetsData] = await Promise.all([
-          supabase.from('likes').select('post_id').eq('user_id', user.id).in('post_id', postIds),
-          supabase.from('retweets').select('post_id').eq('user_id', user.id).in('post_id', postIds)
-        ]);
+        if (postIds.length > 0) {
+          const [likesData, retweetsData] = await Promise.all([
+            supabase.from('likes').select('post_id').eq('user_id', user.id).in('post_id', postIds),
+            supabase.from('retweets').select('post_id').eq('user_id', user.id).in('post_id', postIds)
+          ]);
 
-        const likedPosts = new Set(likesData.data?.map(l => l.post_id) || []);
-        const retweetedPosts = new Set(retweetsData.data?.map(r => r.post_id) || []);
+          const likedPosts = new Set(likesData.data?.map(l => l.post_id) || []);
+          const retweetedPosts = new Set(retweetsData.data?.map(r => r.post_id) || []);
 
-        const enhancedPosts = postsData.map(post => ({
-          ...post,
-          isLiked: likedPosts.has(post.id),
-          isRetweeted: retweetedPosts.has(post.id)
-        }));
+          const enhancedPosts = postsData.map(post => ({
+            ...post,
+            isLiked: likedPosts.has(post.id),
+            isRetweeted: retweetedPosts.has(post.id)
+          }));
 
-        setPosts(enhancedPosts);
+          setPosts(enhancedPosts);
+        } else {
+          setPosts(postsData);
+        }
       }
     } catch (error) {
       console.error('Error fetching posts:', error);
-      toast({ title: "Error", description: "Failed to load posts", variant: "destructive" });
+    } finally {
+      setIsLoadingPosts(false);
     }
   };
 
@@ -134,7 +145,10 @@ const Index = () => {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        return;
+      }
 
       setNotifications(data || []);
       setUnreadCount(data?.filter(n => !n.is_read).length || 0);
@@ -144,6 +158,8 @@ const Index = () => {
   };
 
   const setupRealtimeSubscription = () => {
+    if (!user) return;
+
     const channel = supabase
       .channel('posts-changes')
       .on(
@@ -176,7 +192,7 @@ const Index = () => {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user?.id}` },
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
         () => {
           fetchNotifications();
         }
@@ -189,8 +205,12 @@ const Index = () => {
   };
 
   const handleSignOut = async () => {
-    await signOut();
-    navigate('/auth');
+    try {
+      await signOut();
+      navigate('/auth');
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
   };
 
   const markNotificationsAsRead = async () => {
@@ -214,14 +234,23 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading AnimeZ...</p>
         </div>
       </div>
     );
   }
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -305,7 +334,12 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value={activeTab} className="space-y-4 mt-6">
-            {filteredPosts.length === 0 ? (
+            {isLoadingPosts ? (
+              <div className="text-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading posts...</p>
+              </div>
+            ) : filteredPosts.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">
                   {searchQuery ? 'No posts found matching your search.' : 'No posts yet. Be the first to post!'}
