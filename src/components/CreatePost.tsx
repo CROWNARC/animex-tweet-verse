@@ -6,13 +6,17 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Image, Link2, Search, X, Loader2 } from 'lucide-react';
+import { Image, Link2, Search, X, Loader2, Smile } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { animeService, Anime } from '@/lib/anime';
 import { toast } from '@/hooks/use-toast';
 
-export const CreatePost = () => {
+interface CreatePostProps {
+  onPostCreated?: () => void;
+}
+
+export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
   const { user } = useAuth();
   const [content, setContent] = useState('');
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -25,6 +29,7 @@ export const CreatePost = () => {
   const [animeResults, setAnimeResults] = useState<Anime[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showAnimeDialog, setShowAnimeDialog] = useState(false);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const searchAnime = async (query: string) => {
@@ -79,6 +84,7 @@ export const CreatePost = () => {
   const removeLink = () => {
     setLinkUrl('');
     setLinkTitle('');
+    setShowLinkDialog(false);
   };
 
   const removeAnime = () => {
@@ -169,6 +175,7 @@ export const CreatePost = () => {
       }
 
       toast({ title: "Success", description: "Post submitted for review!" });
+      onPostCreated?.();
     } catch (error) {
       console.error('Error creating post:', error);
       toast({ title: "Error", description: "Failed to create post", variant: "destructive" });
@@ -176,6 +183,12 @@ export const CreatePost = () => {
       setIsSubmitting(false);
     }
   };
+
+  const addEmoji = (emoji: string) => {
+    setContent(prev => prev + emoji);
+  };
+
+  const popularEmojis = ['😀', '😂', '😍', '🥰', '😎', '🤔', '😭', '🔥', '💯', '❤️', '👍', '🎉'];
 
   if (!user) return null;
 
@@ -270,7 +283,7 @@ export const CreatePost = () => {
               />
 
               {/* Link input dialog */}
-              <Dialog>
+              <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="sm" className="text-primary hover:bg-primary/10">
                     <Link2 className="h-5 w-5" />
@@ -294,6 +307,14 @@ export const CreatePost = () => {
                         value={linkTitle}
                         onChange={(e) => setLinkTitle(e.target.value)}
                       />
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                      <Button variant="outline" onClick={() => setShowLinkDialog(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={() => setShowLinkDialog(false)}>
+                        Add Link
+                      </Button>
                     </div>
                   </div>
                 </DialogContent>
@@ -352,6 +373,33 @@ export const CreatePost = () => {
                         </div>
                       ))}
                     </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* Emoji picker */}
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-yellow-400 hover:bg-yellow-400/10">
+                    <Smile className="h-5 w-5" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Add Emoji</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid grid-cols-6 gap-2">
+                    {popularEmojis.map((emoji) => (
+                      <Button
+                        key={emoji}
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => addEmoji(emoji)}
+                        className="text-2xl h-12 w-12"
+                      >
+                        {emoji}
+                      </Button>
+                    ))}
                   </div>
                 </DialogContent>
               </Dialog>

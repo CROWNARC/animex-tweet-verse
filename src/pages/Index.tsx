@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Bell, Search, Settings, Users } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Bell, Search, Settings, Users, TrendingUp, Clock, Heart } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Link, useNavigate } from 'react-router-dom';
 import { ProfileDropdown } from '@/components/ProfileDropdown';
@@ -30,6 +31,8 @@ interface Post {
   comment_count: number;
   created_at: string;
   original_post_id?: string;
+  isLiked?: boolean;
+  isRetweeted?: boolean;
 }
 
 const Index = () => {
@@ -37,6 +40,9 @@ const Index = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredPosts, setFilteredPosts] = useState<Post[]>([]);
+  const [activeTab, setActiveTab] = useState('recent');
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -48,9 +54,10 @@ const Index = () => {
   useEffect(() => {
     if (user) {
       fetchPosts();
+      fetchNotifications();
       setupRealtimeSubscription();
     }
-  }, [user]);
+  }, [user, activeTab]);
 
   useEffect(() => {
     if (searchQuery.trim()) {
@@ -67,13 +74,26 @@ const Index = () => {
 
   const fetchPosts = async () => {
     try {
-      // Fetch approved posts with like/retweet status
-      const { data: postsData, error } = await supabase
+      let query = supabase
         .from('posts')
         .select('*')
         .eq('status', 'approved')
-        .order('created_at', { ascending: false })
         .limit(50);
+
+      // Apply sorting based on active tab
+      switch (activeTab) {
+        case 'trending':
+          query = query.order('like_count', { ascending: false });
+          break;
+        case 'following':
+          // For now, show all posts. In a real app, you'd filter by followed users
+          query = query.order('created_at', { ascending: false });
+          break;
+        default:
+          query = query.order('created_at', { ascending: false });
+      }
+
+      const { data: postsData, error } = await query;
 
       if (error) throw error;
 
@@ -103,6 +123,26 @@ const Index = () => {
     }
   };
 
+  const fetchNotifications = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      setNotifications(data || []);
+      setUnreadCount(data?.filter(n => !n.is_read).length || 0);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
   const setupRealtimeSubscription = () => {
     const channel = supabase
       .channel('posts-changes')
@@ -127,6 +167,20 @@ const Index = () => {
           fetchPosts();
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'comments' },
+        () => {
+          fetchPosts();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user?.id}` },
+        () => {
+          fetchNotifications();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -137,6 +191,23 @@ const Index = () => {
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
+  };
+
+  const markNotificationsAsRead = async () => {
+    if (!user || unreadCount === 0) return;
+
+    try {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false);
+
+      setUnreadCount(0);
+      fetchNotifications();
+    } catch (error) {
+      console.error('Error marking notifications as read:', error);
+    }
   };
 
   if (loading) {
@@ -182,8 +253,21 @@ const Index = () => {
           </div>
 
           <div className="flex items-center space-x-3">
-            <Button variant="ghost" size="sm">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="relative"
+              onClick={markNotificationsAsRead}
+            >
               <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="absolute -top-1 -right-1 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                >
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Badge>
+              )}
             </Button>
             
             {isAdmin && (
@@ -201,21 +285,39 @@ const Index = () => {
 
       {/* Main content */}
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        <CreatePost />
+        <CreatePost onPostCreated={fetchPosts} />
         
-        <div className="space-y-4">
-          {filteredPosts.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">
-                {searchQuery ? 'No posts found matching your search.' : 'No posts yet. Be the first to post!'}
-              </p>
-            </div>
-          ) : (
-            filteredPosts.map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))
-          )}
-        </div>
+        {/* Feed tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="recent" className="flex items-center space-x-2">
+              <Clock className="h-4 w-4" />
+              <span>Recent</span>
+            </TabsTrigger>
+            <TabsTrigger value="trending" className="flex items-center space-x-2">
+              <TrendingUp className="h-4 w-4" />
+              <span>Trending</span>
+            </TabsTrigger>
+            <TabsTrigger value="following" className="flex items-center space-x-2">
+              <Heart className="h-4 w-4" />
+              <span>Following</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value={activeTab} className="space-y-4 mt-6">
+            {filteredPosts.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">
+                  {searchQuery ? 'No posts found matching your search.' : 'No posts yet. Be the first to post!'}
+                </p>
+              </div>
+            ) : (
+              filteredPosts.map((post) => (
+                <PostCard key={post.id} post={post} onUpdate={fetchPosts} />
+              ))
+            )}
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
