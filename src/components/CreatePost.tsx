@@ -151,6 +151,8 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
     }
 
     setIsSubmitting(true);
+    console.log('Starting post submission with:', { content: content.trim(), linkUrl, linkTitle, pollData });
+    
     try {
       let mediaUrl = null;
       let postType = 'text';
@@ -164,6 +166,7 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
         postType = mediaFile.type.startsWith('image/') ? 'image' : 'gif';
       } else if (linkUrl) {
         postType = 'link';
+        console.log('Setting post type to link');
       }
 
       // Create post
@@ -182,12 +185,16 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
         status: 'approved' as 'approved'
       };
 
+      console.log('Attempting to insert post with data:', postData);
+      
       const { data: postResult, error: postError } = await supabase
         .from('posts')
         .insert(postData)
         .select()
         .single();
 
+      console.log('Post result:', postResult, 'Error:', postError);
+      
       if (postError) throw postError;
 
       // Create poll if present
@@ -380,7 +387,15 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
                       <Button variant="outline" onClick={() => setShowLinkDialog(false)}>
                         Cancel
                       </Button>
-                      <Button onClick={() => setShowLinkDialog(false)}>
+                      <Button 
+                        onClick={() => {
+                          if (!linkUrl.trim()) {
+                            toast({ title: "Error", description: "Please enter a valid URL", variant: "destructive" });
+                            return;
+                          }
+                          setShowLinkDialog(false);
+                        }}
+                      >
                         Add Link
                       </Button>
                     </div>
