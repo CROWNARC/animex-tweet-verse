@@ -10,6 +10,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { PollDisplay } from '@/components/PollDisplay';
 
 interface Comment {
   id: string;
@@ -344,6 +345,9 @@ export const PostCard = ({ post, onUpdate }: PostCardProps) => {
               )}
             </div>
           )}
+
+          {/* Poll display */}
+          <PollDisplay postId={post.id} />
 
           {/* Action buttons */}
           <div className="flex items-center justify-between max-w-md">

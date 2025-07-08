@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { animeService, Anime } from '@/lib/anime';
 import { toast } from '@/hooks/use-toast';
+import { PollCreator } from '@/components/PollCreator';
 
 interface CreatePostProps {
   onPostCreated?: () => void;
@@ -30,6 +31,7 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
   const [isSearching, setIsSearching] = useState(false);
   const [showAnimeDialog, setShowAnimeDialog] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [pollData, setPollData] = useState<{ title: string; options: any[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const searchAnime = async (query: string) => {
@@ -114,13 +116,36 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
     }
   };
 
+  const uploadPollImage = async (file: File, userId: string): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `poll_${Date.now()}.${fileExt}`;
+      const filePath = `${userId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('post-media')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('post-media')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading poll image:', error);
+      return null;
+    }
+  };
+
   const handleSubmit = async () => {
     if (!user) {
       toast({ title: "Error", description: "Please sign in to create posts", variant: "destructive" });
       return;
     }
 
-    if (!content.trim() && !mediaFile && !linkUrl) {
+    if (!content.trim() && !mediaFile && !linkUrl && !pollData) {
       toast({ title: "Error", description: "Please add some content to your post", variant: "destructive" });
       return;
     }
@@ -154,14 +179,53 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
         anime_id: selectedAnime?.mal_id?.toString() || null,
         anime_title: selectedAnime?.title || null,
         anime_image: selectedAnime?.images?.jpg?.image_url || null,
-        status: 'pending' as 'pending'
+        status: 'approved' as 'approved'
       };
 
-      const { error } = await supabase
+      const { data: postResult, error: postError } = await supabase
         .from('posts')
-        .insert(postData);
+        .insert(postData)
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (postError) throw postError;
+
+      // Create poll if present
+      if (pollData && postResult) {
+        const { data: pollResult, error: pollError } = await supabase
+          .from('polls')
+          .insert({
+            post_id: postResult.id,
+            title: pollData.title,
+            total_votes: 0
+          })
+          .select()
+          .single();
+
+        if (pollError) throw pollError;
+
+        // Create poll options
+        for (let i = 0; i < pollData.options.length; i++) {
+          const option = pollData.options[i];
+          let imageUrl = null;
+
+          if (option.imageFile) {
+            imageUrl = await uploadPollImage(option.imageFile, user.id);
+          }
+
+          const { error: optionError } = await supabase
+            .from('poll_options')
+            .insert({
+              poll_id: pollResult.id,
+              title: option.title,
+              image_url: imageUrl,
+              vote_count: 0,
+              option_order: i + 1
+            });
+
+          if (optionError) throw optionError;
+        }
+      }
 
       // Reset form
       setContent('');
@@ -170,11 +234,12 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
       setLinkUrl('');
       setLinkTitle('');
       setSelectedAnime(null);
+      setPollData(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
 
-      toast({ title: "Success", description: "Post submitted for review!" });
+      toast({ title: "Success", description: "Post created successfully!" });
       onPostCreated?.();
     } catch (error) {
       console.error('Error creating post:', error);
@@ -262,6 +327,9 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
               </div>
             </div>
           )}
+
+          {/* Poll creator */}
+          <PollCreator onPollChange={setPollData} />
 
           <div className="flex items-center justify-between mt-4">
             <div className="flex items-center space-x-2">
@@ -411,7 +479,7 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
               </span>
               <Button 
                 onClick={handleSubmit}
-                disabled={isSubmitting || (!content.trim() && !mediaFile && !linkUrl)}
+                disabled={isSubmitting || (!content.trim() && !mediaFile && !linkUrl && !pollData)}
                 className="bg-primary hover:bg-primary/90"
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
