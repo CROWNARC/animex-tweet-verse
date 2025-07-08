@@ -151,8 +151,6 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
     }
 
     setIsSubmitting(true);
-    console.log('Starting post submission with:', { content: content.trim(), linkUrl, linkTitle, pollData });
-    
     try {
       let mediaUrl = null;
       let postType = 'text';
@@ -166,7 +164,6 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
         postType = mediaFile.type.startsWith('image/') ? 'image' : 'gif';
       } else if (linkUrl) {
         postType = 'link';
-        console.log('Setting post type to link');
       }
 
       // Create post
@@ -177,24 +174,20 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
         content: content.trim(),
         post_type: postType as 'text' | 'image' | 'gif' | 'link',
         media_url: mediaUrl,
-        link_url: linkUrl || null,
-        link_title: linkTitle || null,
+        link_url: linkUrl.trim() || null,
+        link_title: linkTitle.trim() || null,
         anime_id: selectedAnime?.mal_id?.toString() || null,
         anime_title: selectedAnime?.title || null,
         anime_image: selectedAnime?.images?.jpg?.image_url || null,
         status: 'approved' as 'approved'
       };
 
-      console.log('Attempting to insert post with data:', postData);
-      
       const { data: postResult, error: postError } = await supabase
         .from('posts')
         .insert(postData)
         .select()
         .single();
 
-      console.log('Post result:', postResult, 'Error:', postError);
-      
       if (postError) throw postError;
 
       // Create poll if present
@@ -242,6 +235,7 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
       setLinkTitle('');
       setSelectedAnime(null);
       setPollData(null);
+      setShowLinkDialog(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -250,7 +244,11 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
       onPostCreated?.();
     } catch (error) {
       console.error('Error creating post:', error);
-      toast({ title: "Error", description: "Failed to create post", variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to create post", 
+        variant: "destructive" 
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -281,6 +279,7 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
             onChange={(e) => setContent(e.target.value)}
             className="min-h-[120px] resize-none border-0 bg-transparent text-lg placeholder:text-muted-foreground focus-visible:ring-0"
             maxLength={280}
+            disabled={isSubmitting}
           />
 
           {/* Selected anime */}
@@ -374,6 +373,7 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
                         placeholder="Enter URL"
                         value={linkUrl}
                         onChange={(e) => setLinkUrl(e.target.value)}
+                        disabled={isSubmitting}
                       />
                     </div>
                     <div>
@@ -381,10 +381,15 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
                         placeholder="Link title (optional)"
                         value={linkTitle}
                         onChange={(e) => setLinkTitle(e.target.value)}
+                        disabled={isSubmitting}
                       />
                     </div>
                     <div className="flex justify-end space-x-2">
-                      <Button variant="outline" onClick={() => setShowLinkDialog(false)}>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowLinkDialog(false)}
+                        disabled={isSubmitting}
+                      >
                         Cancel
                       </Button>
                       <Button 
@@ -393,8 +398,16 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
                             toast({ title: "Error", description: "Please enter a valid URL", variant: "destructive" });
                             return;
                           }
+                          // Basic URL validation
+                          try {
+                            new URL(linkUrl.trim().startsWith('http') ? linkUrl.trim() : `https://${linkUrl.trim()}`);
+                          } catch {
+                            toast({ title: "Error", description: "Please enter a valid URL", variant: "destructive" });
+                            return;
+                          }
                           setShowLinkDialog(false);
                         }}
+                        disabled={isSubmitting}
                       >
                         Add Link
                       </Button>
@@ -422,6 +435,7 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
                         setAnimeSearch(e.target.value);
                         searchAnime(e.target.value);
                       }}
+                      disabled={isSubmitting}
                     />
                     
                     {isSearching && (
