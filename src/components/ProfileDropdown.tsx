@@ -109,8 +109,12 @@ export const ProfileDropdown = ({ onSignOut }: ProfileDropdownProps) => {
       setAvatarFile(null);
       setAvatarPreview(null);
       
-      // Refresh the page to update the UI
-      window.location.reload();
+      // Force auth state refresh without page reload
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // Trigger auth state change to refresh profile data
+        supabase.auth.onAuthStateChange(() => {});
+      }
     } catch (error) {
       console.error('Error updating profile:', error);
       toast({ title: "Error", description: "Failed to update profile", variant: "destructive" });

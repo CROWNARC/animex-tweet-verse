@@ -398,13 +398,6 @@ export const CreatePost = ({ onPostCreated }: CreatePostProps) => {
                             toast({ title: "Error", description: "Please enter a valid URL", variant: "destructive" });
                             return;
                           }
-                          // Basic URL validation
-                          try {
-                            new URL(linkUrl.trim().startsWith('http') ? linkUrl.trim() : `https://${linkUrl.trim()}`);
-                          } catch {
-                            toast({ title: "Error", description: "Please enter a valid URL", variant: "destructive" });
-                            return;
-                          }
                           setShowLinkDialog(false);
                         }}
                         disabled={isSubmitting}

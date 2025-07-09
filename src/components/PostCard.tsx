@@ -190,6 +190,12 @@ export const PostCard = ({ post, onUpdate }: PostCardProps) => {
     }
 
     try {
+      // Set user context for RLS
+      await supabase.rpc('set_config', { 
+        setting_name: 'app.current_user_id', 
+        setting_value: user.id 
+      });
+
       const { error } = await supabase
         .from('community_reports')
         .insert({
